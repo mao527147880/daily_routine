@@ -452,14 +452,19 @@
 
         async function renderChart(type, code) {
             const preview = document.getElementById(type + '-preview');
-            preview.innerHTML = `<div class="chart-wrapper"><div class="chart-container" id="${type}-chart"><pre class="mermaid">${code}</pre></div></div>`;
+            const uniqueId = `mermaid-${type}-${Date.now()}`;
+            
+            preview.innerHTML = `<div class="chart-wrapper"><div class="chart-container" id="${type}-chart"></div></div>`;
+            const container = document.getElementById(type + '-chart');
 
             try {
-                await mermaid.run({ nodes: [preview.querySelector('.mermaid')] });
+                const { svg } = await mermaid.render(uniqueId, code);
+                container.innerHTML = svg;
                 centerChart(type);
                 setupDragDrop(type);
             } catch(e) {
-                preview.innerHTML = '<p style="color:red;padding:20px;">图形生成失败</p>';
+                console.error('Mermaid render error:', e);
+                preview.innerHTML = '<p style="color:red;padding:20px;">图形生成失败: ' + e.message + '</p>';
             }
         }
 
