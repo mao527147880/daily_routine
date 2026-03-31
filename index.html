@@ -52,7 +52,14 @@
         .preview-content { flex: 1; overflow: hidden; padding: 20px; display: flex; justify-content: center; align-items: center; cursor: grab; position: relative; }
         .preview-content.dragging { cursor: grabbing; }
         .chart-wrapper { width: 100%; height: 100%; overflow: hidden; position: relative; }
-        .chart-container { position: absolute; cursor: move; user-select: none; }
+        .chart-container { 
+            position: absolute; 
+            cursor: move; 
+            user-select: none; 
+            transform-origin: center center;
+            will-change: transform;
+        }
+        .chart-container.smooth { transition: transform 0.15s ease-out; }
         .chart-container svg { max-width: none !important; pointer-events: auto; }
         .mermaid svg { max-width: none !important; }
         .history-layout { display: flex; width: 100%; height: 100%; }
@@ -484,9 +491,11 @@
                 y: (wrapperRect.height - svgRect.height * zoomLevel[type]) / 2
             };
 
+            container.classList.add('smooth');
             container.style.left = chartPos[type].x + 'px';
             container.style.top = chartPos[type].y + 'px';
             container.style.transform = `scale(${zoomLevel[type]})`;
+            setTimeout(() => container.classList.remove('smooth'), 150);
         }
 
         function showEmpty(type) {
@@ -497,13 +506,25 @@
         function zoom(type, delta) {
             zoomLevel[type] = Math.max(0.3, Math.min(3, zoomLevel[type] + delta));
             document.getElementById(type + '-zoom').textContent = Math.round(zoomLevel[type] * 100) + '%';
-            centerChart(type);
+            
+            const container = document.getElementById(type + '-chart');
+            if (container) {
+                container.classList.add('smooth');
+                container.style.transform = `scale(${zoomLevel[type]})`;
+                setTimeout(() => container.classList.remove('smooth'), 150);
+            }
         }
 
         function resetZoom(type) {
             zoomLevel[type] = 1;
             document.getElementById(type + '-zoom').textContent = '100%';
-            centerChart(type);
+            
+            const container = document.getElementById(type + '-chart');
+            if (container) {
+                container.classList.add('smooth');
+                container.style.transform = `scale(1)`;
+                setTimeout(() => container.classList.remove('smooth'), 150);
+            }
         }
 
         function setupWheelZoom() {
@@ -514,7 +535,13 @@
                     const delta = e.deltaY > 0 ? -0.1 : 0.1;
                     zoomLevel[type] = Math.max(0.3, Math.min(3, zoomLevel[type] + delta));
                     document.getElementById(type + '-zoom').textContent = Math.round(zoomLevel[type] * 100) + '%';
-                    centerChart(type);
+                    
+                    const container = document.getElementById(type + '-chart');
+                    if (container) {
+                        container.classList.add('smooth');
+                        container.style.transform = `scale(${zoomLevel[type]})`;
+                        setTimeout(() => container.classList.remove('smooth'), 150);
+                    }
                 }, { passive: false });
             });
         }
@@ -526,6 +553,7 @@
 
             container.addEventListener('mousedown', (e) => {
                 dragState[type] = { isDragging: true, startX: e.clientX, startY: e.clientY };
+                container.classList.remove('smooth');
                 preview.classList.add('dragging');
                 e.preventDefault();
             });
