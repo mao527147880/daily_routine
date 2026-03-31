@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>每日流程展示</title>
+    <script src="mermaid.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a2e;
+            min-height: 100vh;
+            color: #fff;
+        }
+
+        .header {
+            background: #16213e;
+            padding: 15px 30px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid #0f3460;
+        }
+
+        .header h1 {
+            font-size: 1.5em;
+            color: #e94560;
+        }
+
+        .header-tabs {
+            display: flex;
+            gap: 10px;
+        }
+
+        .tab-btn {
+            padding: 10px 25px;
+            border: none;
+            background: transparent;
+            color: #a0a0a0;
+            font-size: 14px;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.3s;
+        }
+
+        .tab-btn:hover {
+            background: #0f3460;
+            color: #fff;
+        }
+
+        .tab-btn.active {
+            background: #e94560;
+            color: #fff;
+        }
+
+        .main-container {
+            display: none;
+            height: calc(100vh - 70px);
+        }
+
+        .main-container.active {
+            display: flex;
+        }
+
+        /* 编辑页面 - 类似 Mermaid Live Editor */
+        .editor-layout {
+            display: flex;
+            width: 100%;
+            height: 100%;
+        }
+
+        .left-sidebar {
+            width: 280px;
+            background: #16213e;
+            border-right: 1px solid #0f3460;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .sidebar-section {
+            padding: 15px;
+            border-bottom: 1px solid #0f3460;
+        }
+
+        .sidebar-section h3 {
+            font-size: 12px;
+            text-transform: uppercase;
+            color: #e94560;
+            margin-bottom: 12px;
+            letter-spacing: 1px;
+        }
+
+        .date-picker {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #0f3460;
+            border-radius: 6px;
+            background: #1a1a2e;
+            color: #fff;
+            font-size: 14px;
+        }
+
+        .date-picker:focus {
+            outline: none;
+            border-color: #e94560;
+        }
+
+        .diary-textarea {
+            width: 100%;
+            height: 200px;
+            padding: 12px;
+            border: 1px solid #0f3460;
+            border-radius: 6px;
+            background: #1a1a2e;
+            color: #fff;
+            font-size: 14px;
+            resize: vertical;
+            line-height: 1.6;
+        }
+
+        .diary-textarea:focus {
+            outline: none;
+            border-color: #e94560;
+        }
+
+        .diary-textarea::placeholder {
+            color: #555;
+        }
+
+        .quick-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .tag {
+            padding: 4px 10px;
+            background: #0f3460;
+            border: none;
+            border-radius: 4px;
+            color: #a0a0a0;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .tag:hover {
+            background: #e94560;
+            color: #fff;
+        }
+
+        .btn-ai {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #e94560 0%, #c73659 100%);
+            border: none;
+            border-radius: 6px;
+            color: #fff;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-ai:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(233, 69, 96, 0.4);
+        }
+
+        .btn-ai:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .api-section input {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #0f3460;
+            border-radius: 4px;
+            background: #1a1a2e;
+            color: #fff;
+            font-size: 12px;
+            margin-top: 8px;
+        }
+
+        .api-section small {
+            color: #555;
+            font-size: 11px;
+        }
+
+        .api-section a {
+            color: #e94560;
+        }
+
+        .status-msg {
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 13px;
+            text-align: center;
+            display: none;
+        }
+
+        .status-msg.success {
+            background: #1e3a2f;
+            color: #4ade80;
+            display: block;
+        }
+
+        .status-msg.error {
+            background: #3a1e1e;
+            color: #f87171;
+            display: block;
+        }
+
+        /* 编辑器和预览区域 */
+        .editor-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .code-header {
+            background: #0f3460;
+            padding: 10px 15px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid #16213e;
+        }
+
+        .code-header span {
+            font-size: 13px;
+            color: #a0a0a0;
+        }
+
+        .code-editor {
+            flex: 1;
+            background: #1a1a2e;
+            padding: 15px;
+            overflow: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            color: #e0e0e0;
+            white-space: pre-wrap;
+            border: none;
+            resize: none;
+        }
+
+        .code-editor:focus {
+            outline: none;
+        }
+
+        .preview-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #fff;
+            border-left: 1px solid #0f3460;
+        }
+
+        .preview-header {
+            background: #f0f0f0;
+            padding: 10px 15px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .preview-header span {
+            font-size: 13px;
+            color: #666;
+        }
+
+        .zoom-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .zoom-btn {
+            padding: 4px 10px;
+            border: 1px solid #ccc;
+            background: #fff;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .zoom-btn:hover {
+            background: #e94560;
+            color: #fff;
+            border-color: #e94560;
+        }
+
+        .zoom-value {
+            font-size: 12px;
+            color: #e94560;
+            font-weight: bold;
+            min-width: 40px;
+            text-align: center;
+        }
+
+        .preview-content {
+            flex: 1;
+            overflow: hidden;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            cursor: grab;
+            position: relative;
+        }
+
+        .preview-content.dragging {
+            cursor: grabbing;
+        }
+
+        .preview-content.dragging .chart-container {
+            cursor: grabbing;
+        }
+
+        .chart-wrapper {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .chart-container {
+            transform-origin: center center;
+            transition: transform 0.1s ease-out;
+            min-width: fit-content;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .mermaid svg {
+            max-width: none !important;
+        }
+
+        /* 查看历史页面 */
+        .history-layout {
+            display: flex;
+            width: 100%;
+            height: 100%;
+        }
+
+        .calendar-panel {
+            width: 300px;
+            background: #16213e;
+            border-right: 1px solid #0f3460;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .calendar-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .calendar-nav button {
+            background: #0f3460;
+            color: #fff;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .calendar-nav button:hover {
+            background: #e94560;
+        }
+
+        .calendar-nav span {
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .calendar {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .calendar th {
+            padding: 10px 5px;
+            text-align: center;
+            color: #e94560;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .calendar td {
+            padding: 10px 5px;
+            text-align: center;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.2s;
+            font-size: 14px;
+            color: #a0a0a0;
+        }
+
+        .calendar td:hover {
+            background: #0f3460;
+            color: #fff;
+        }
+
+        .calendar td.selected {
+            background: #e94560;
+            color: #fff;
+        }
+
+        .calendar td.has-data {
+            position: relative;
+            color: #fff;
+        }
+
+        .calendar td.has-data::after {
+            content: '';
+            position: absolute;
+            bottom: 3px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 4px;
+            height: 4px;
+            background: #4ade80;
+            border-radius: 50%;
+        }
+
+        .calendar td.other-month {
+            color: #444;
+        }
+
+        .history-preview {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #fff;
+        }
+
+        .diary-info {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .diary-info h2 {
+            color: #333;
+            font-size: 18px;
+            margin-bottom: 8px;
+        }
+
+        .diary-info p {
+            color: #666;
+            font-size: 14px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid #fff;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #999;
+        }
+
+        .empty-state svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+            opacity: 0.3;
+        }
+
+        .empty-state p {
+            font-size: 16px;
+        }
+
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            padding: 12px 15px;
+            background: #f8f9fa;
+            border-top: 1px solid #ddd;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .legend-color {
+            width: 14px;
+            height: 14px;
+            border-radius: 3px;
+        }
+
+        @media (max-width: 1000px) {
+            .editor-layout, .history-layout {
+                flex-direction: column;
+            }
+
+            .left-sidebar, .calendar-panel {
+                width: 100%;
+                max-height: 300px;
+            }
+
+            .preview-area, .history-preview {
+                border-left: none;
+                border-top: 1px solid #0f3460;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>每日流程展示</h1>
+        <div class="header-tabs">
+            <button class="tab-btn active" onclick="switchTab('edit')">编辑日记</button>
+            <button class="tab-btn" onclick="switchTab('view')">查看历史</button>
+        </div>
+    </div>
+
+    <!-- 编辑页面 -->
+    <div id="edit-tab" class="main-container active">
+        <div class="editor-layout">
+            <div class="left-sidebar">
+                <div class="sidebar-section">
+                    <h3>日期</h3>
+                    <input type="date" id="diary-date" class="date-picker" onchange="loadDiary()">
+                </div>
+
+                <div class="sidebar-section">
+                    <h3>日记内容</h3>
+                    <textarea id="diary-content" class="diary-textarea" placeholder="输入日记，如：
+早上：练功30分钟
+上午：写代码
+中午：做饭
+..."></textarea>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3>快捷标签</h3>
+                    <div class="quick-tags">
+                        <button class="tag" onclick="addTag('早上练功')">练功</button>
+                        <button class="tag" onclick="addTag('冥想')">冥想</button>
+                        <button class="tag" onclick="addTag('爬山')">爬山</button>
+                        <button class="tag" onclick="addTag('写代码')">写代码</button>
+                        <button class="tag" onclick="addTag('中医学习')">中医</button>
+                        <button class="tag" onclick="addTag('做饭')">做饭</button>
+                        <button class="tag" onclick="addTag('唱歌')">唱歌</button>
+                        <button class="tag" onclick="addTag('金融分析')">金融</button>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <button class="btn-ai" id="ai-btn" onclick="aiParseAndSave()">AI解析并保存</button>
+                </div>
+
+                <div class="sidebar-section api-section">
+                    <h3>API设置</h3>
+                    <input type="password" id="api-key" placeholder="DeepSeek API Key" onchange="saveApiKey()">
+                    <small>获取：<a href="https://platform.deepseek.com/api_keys" target="_blank">deepseek.com</a></small>
+                </div>
+
+                <div class="sidebar-section">
+                    <div id="status-msg" class="status-msg"></div>
+                </div>
+            </div>
+
+            <div class="editor-area">
+                <div class="code-header">
+                    <span>Mermaid 代码</span>
+                </div>
+                <textarea id="mermaid-code" class="code-editor" placeholder="AI解析后生成的Mermaid代码将显示在这里..." readonly></textarea>
+            </div>
+
+            <div class="preview-area">
+                <div class="preview-header">
+                    <span>预览</span>
+                    <div class="zoom-controls">
+                        <button class="zoom-btn" onclick="zoom('edit', -0.1)">−</button>
+                        <span class="zoom-value" id="edit-zoom">100%</span>
+                        <button class="zoom-btn" onclick="zoom('edit', 0.1)">+</button>
+                        <button class="zoom-btn" onclick="resetZoom('edit')">重置</button>
+                    </div>
+                </div>
+                <div class="preview-content" id="edit-preview">
+                    <div class="empty-state">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
+                        </svg>
+                        <p>输入日记后点击"AI解析并保存"</p>
+                    </div>
+                </div>
+                <div class="legend">
+                    <div class="legend-item"><div class="legend-color" style="background:#4CAF50"></div>健康</div>
+                    <div class="legend-item"><div class="legend-color" style="background:#2196F3"></div>工作</div>
+                    <div class="legend-item"><div class="legend-color" style="background:#9C27B0"></div>安心</div>
+                    <div class="legend-item"><div class="legend-color" style="background:#FF9800"></div>生活</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 查看历史页面 -->
+    <div id="view-tab" class="main-container">
+        <div class="history-layout">
+            <div class="calendar-panel">
+                <div class="calendar-nav">
+                    <button onclick="changeMonth(-1)">◀</button>
+                    <span id="calendar-month"></span>
+                    <button onclick="changeMonth(1)">▶</button>
+                </div>
+                <table class="calendar">
+                    <thead>
+                        <tr><th>日</th><th>一</th><th>二</th><th>三</th><th>四</th><th>五</th><th>六</th></tr>
+                    </thead>
+                    <tbody id="calendar-body"></tbody>
+                </table>
+            </div>
+
+            <div class="history-preview">
+                <div class="diary-info" id="diary-info" style="display:none;">
+                    <h2 id="info-date"></h2>
+                    <p id="info-content"></p>
+                </div>
+                <div class="preview-header">
+                    <span>流程图</span>
+                    <div class="zoom-controls">
+                        <button class="zoom-btn" onclick="zoom('view', -0.1)">−</button>
+                        <span class="zoom-value" id="view-zoom">100%</span>
+                        <button class="zoom-btn" onclick="zoom('view', 0.1)">+</button>
+                        <button class="zoom-btn" onclick="resetZoom('view')">重置</button>
+                    </div>
+                </div>
+                <div class="preview-content" id="view-preview">
+                    <div class="empty-state">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
+                        </svg>
+                        <p>选择日期查看流程图</p>
+                    </div>
+                </div>
+                <div class="legend">
+                    <div class="legend-item"><div class="legend-color" style="background:#4CAF50"></div>健康</div>
+                    <div class="legend-item"><div class="legend-color" style="background:#2196F3"></div>工作</div>
+                    <div class="legend-item"><div class="legend-color" style="background:#9C27B0"></div>安心</div>
+                    <div class="legend-item"><div class="legend-color" style="background:#FF9800"></div>生活</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({ startOnLoad: false, theme: 'default' });
+
+        let diaryData = {};
+        let currentDate = new Date();
+        let selectedDate = null;
+        let zoomLevel = { edit: 1, view: 1 };
+
+        const timeSlots = ['早上', '上午', '中午', '下午', '傍晚', '晚上'];
+
+        const categories = {
+            health: { name: '健康', keywords: ['中医', '爬山', '练功', '运动', '冥想', '瑜伽', '跑步', '健身', '养生', '按摩', '针灸'] },
+            work: { name: '工作', keywords: ['计算机', '金融', '玄学', '编程', '代码', '项目', '会议', '分析', '投资', '股票', '算法', '开发', '设计'] },
+            peace: { name: '安心', keywords: ['心理学', '哲学', '读书', '阅读', '思考', '反思', '冥想', '静心', '写作', '日记'] },
+            life: { name: '生活', keywords: ['做饭', '唱歌', '烹饪', '美食', '音乐', '电影', '游戏', '购物', '打扫', '休息', '睡觉'] }
+        };
+
+        async function init() {
+            document.getElementById('diary-date').value = formatDate(new Date());
+            await loadData();
+            loadApiKey();
+            renderCalendar();
+            setupWheelZoom();
+        }
+
+        function formatDate(d) {
+            return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        }
+
+        async function loadData() {
+            try {
+                const res = await fetch('/api/diary');
+                diaryData = await res.json();
+            } catch(e) {
+                diaryData = {};
+            }
+        }
+
+        async function saveData() {
+            try {
+                const res = await fetch('/api/diary', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(diaryData)
+                });
+                return res.ok;
+            } catch(e) {
+                return false;
+            }
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.main-container').forEach(c => c.classList.remove('active'));
+            document.querySelector(`.tab-btn:${tab === 'edit' ? 'first' : 'last'}-child`).classList.add('active');
+            document.getElementById(tab + '-tab').classList.add('active');
+            if (tab === 'view') renderCalendar();
+        }
+
+        function loadDiary() {
+            const date = document.getElementById('diary-date').value;
+            const data = diaryData[date];
+            document.getElementById('diary-content').value = data?.content || '';
+            if (data?.chartContent) {
+                document.getElementById('mermaid-code').value = data.chartContent;
+                renderChart('edit', data.chartContent);
+            } else {
+                document.getElementById('mermaid-code').value = '';
+                showEmpty('edit');
+            }
+        }
+
+        function addTag(text) {
+            const ta = document.getElementById('diary-content');
+            ta.value += (ta.value ? '\n' : '') + text;
+            ta.focus();
+        }
+
+        function showStatus(msg, isError = false) {
+            const el = document.getElementById('status-msg');
+            el.textContent = msg;
+            el.className = 'status-msg ' + (isError ? 'error' : 'success');
+            setTimeout(() => el.className = 'status-msg', 3000);
+        }
+
+        function saveApiKey() {
+            localStorage.setItem('deepseek_api_key', document.getElementById('api-key').value);
+        }
+
+        function loadApiKey() {
+            const key = localStorage.getItem('deepseek_api_key');
+            if (key) document.getElementById('api-key').value = key;
+        }
+
+        async function aiParseAndSave() {
+            const content = document.getElementById('diary-content').value.trim();
+            const apiKey = document.getElementById('api-key').value.trim();
+            const date = document.getElementById('diary-date').value;
+
+            if (!content) { showStatus('请输入日记内容', true); return; }
+            if (!apiKey) { showStatus('请输入API Key', true); return; }
+
+            const btn = document.getElementById('ai-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading-spinner"></span>解析中...';
+
+            try {
+                const res = await fetch('https://api.deepseek.com/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: 'deepseek-chat',
+                        messages: [{
+                            role: 'system',
+                            content: `你是日记解析助手。提取时间段活动并分类。
+时间段：早上、上午、中午、下午、傍晚、晚上
+分类：健康、工作、安心、生活
+返回JSON：{"早上":[{"text":"活动","category":"健康"}],...}`
+                        }, {
+                            role: 'user',
+                            content: content
+                        }],
+                        temperature: 0.3
+                    })
+                });
+
+                if (!res.ok) throw new Error('API请求失败');
+
+                const data = await res.json();
+                const jsonStr = data.choices[0].message.content.match(/\{[\s\S]*\}/)?.[0];
+                if (!jsonStr) throw new Error('解析失败');
+
+                let activities = JSON.parse(jsonStr);
+                for (const slot in activities) {
+                    if (Array.isArray(activities[slot])) {
+                        activities[slot] = activities[slot].map(item => {
+                            const cat = Object.values(categories).find(c => c.name === item.category);
+                            return { text: item.text, category: cat?.name || '其他' };
+                        });
+                    }
+                }
+
+                const mermaidCode = generateMermaid(activities, date);
+                document.getElementById('mermaid-code').value = mermaidCode;
+
+                diaryData[date] = {
+                    createDate: new Date().toISOString(),
+                    diaryDate: date,
+                    content: content,
+                    chartContent: mermaidCode
+                };
+
+                if (await saveData()) {
+                    await renderChart('edit', mermaidCode);
+                    showStatus('解析并保存成功！');
+                    renderCalendar();
+                } else {
+                    throw new Error('保存失败');
+                }
+            } catch(e) {
+                showStatus('失败: ' + e.message, true);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = 'AI解析并保存';
+            }
+        }
+
+        function generateMermaid(activities, dateStr) {
+            let code = `journey title ${dateStr} 每日流程\n`;
+            let sec = 1;
+            for (const slot of timeSlots) {
+                if (activities[slot]?.length) {
+                    code += `  section ${slot}\n`;
+                    activities[slot].forEach((a, i) => {
+                        code += `    ${a.text.replace(/"/g,"'")}: ${sec*10+i}: ${a.category}\n`;
+                    });
+                    sec++;
+                }
+            }
+            return code;
+        }
+
+        async function renderChart(type, code) {
+            const container = document.getElementById(type + '-preview');
+            container.innerHTML = `<div class="chart-container"><pre class="mermaid">${code}</pre></div>`;
+            try {
+                await mermaid.run({ nodes: [container.querySelector('.mermaid')] });
+                applyZoom(type);
+            } catch(e) {
+                container.innerHTML = '<p style="color:red;padding:20px;">图形生成失败</p>';
+            }
+        }
+
+        function showEmpty(type) {
+            document.getElementById(type + '-preview').innerHTML = `
+                <div class="empty-state">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
+                    </svg>
+                    <p>${type === 'edit' ? '输入日记后点击"AI解析并保存"' : '选择日期查看流程图'}</p>
+                </div>`;
+        }
+
+        function zoom(type, delta) {
+            zoomLevel[type] = Math.max(0.3, Math.min(3, zoomLevel[type] + delta));
+            document.getElementById(type + '-zoom').textContent = Math.round(zoomLevel[type] * 100) + '%';
+            applyZoom(type);
+        }
+
+        function resetZoom(type) {
+            zoomLevel[type] = 1;
+            document.getElementById(type + '-zoom').textContent = '100%';
+            applyZoom(type);
+        }
+
+        function applyZoom(type) {
+            const chart = document.querySelector(`#${type}-preview .chart-container`);
+            if (chart) chart.style.transform = `scale(${zoomLevel[type]})`;
+        }
+
+        function setupWheelZoom() {
+            ['edit', 'view'].forEach(type => {
+                const preview = document.getElementById(type + '-preview');
+                preview.addEventListener('wheel', (e) => {
+                    e.preventDefault();
+                    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+                    zoomLevel[type] = Math.max(0.3, Math.min(3, zoomLevel[type] + delta));
+                    document.getElementById(type + '-zoom').textContent = Math.round(zoomLevel[type] * 100) + '%';
+                    applyZoom(type);
+                }, { passive: false });
+            });
+        }
+
+        function renderCalendar() {
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            document.getElementById('calendar-month').textContent = `${year}年${month+1}月`;
+
+            const first = new Date(year, month, 1).getDay();
+            const last = new Date(year, month+1, 0).getDate();
+            const tbody = document.getElementById('calendar-body');
+            tbody.innerHTML = '';
+
+            let d = 1;
+            for (let i = 0; i < 6; i++) {
+                const tr = document.createElement('tr');
+                for (let j = 0; j < 7; j++) {
+                    const td = document.createElement('td');
+                    if (i === 0 && j < first) {
+                        td.textContent = new Date(year, month, 0).getDate() - first + j + 1;
+                        td.className = 'other-month';
+                    } else if (d > last) {
+                        td.textContent = d - last;
+                        td.className = 'other-month';
+                        d++;
+                    } else {
+                        const ds = formatDate(new Date(year, month, d));
+                        td.textContent = d;
+                        td.dataset.date = ds;
+                        if (diaryData[ds]) td.classList.add('has-data');
+                        if (selectedDate === ds) td.classList.add('selected');
+                        td.onclick = () => selectDate(ds, td);
+                        d++;
+                    }
+                    tr.appendChild(td);
+                }
+                tbody.appendChild(tr);
+                if (d > last) break;
+            }
+        }
+
+        function changeMonth(delta) {
+            currentDate.setMonth(currentDate.getMonth() + delta);
+            renderCalendar();
+        }
+
+        async function selectDate(ds, td) {
+            document.querySelectorAll('.calendar td').forEach(t => t.classList.remove('selected'));
+            td.classList.add('selected');
+            selectedDate = ds;
+
+            const data = diaryData[ds];
+            const info = document.getElementById('diary-info');
+
+            if (data) {
+                info.style.display = 'block';
+                document.getElementById('info-date').textContent = ds;
+                document.getElementById('info-content').textContent = data.content || '';
+                if (data.chartContent) {
+                    await renderChart('view', data.chartContent);
+                } else {
+                    showEmpty('view');
+                }
+            } else {
+                info.style.display = 'none';
+                showEmpty('view');
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>
