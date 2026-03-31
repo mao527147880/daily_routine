@@ -81,6 +81,8 @@
         .legend { display: flex; flex-wrap: wrap; gap: 15px; padding: 12px 15px; background: #f8f9fa; border-top: 1px solid #ddd; }
         .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #666; }
         .legend-color { width: 14px; height: 14px; border-radius: 3px; }
+        .btn-export { padding: 8px 15px; background: #0f3460; border: none; border-radius: 4px; color: #fff; font-size: 12px; cursor: pointer; margin-right: 8px; }
+        .btn-export:hover { background: #e94560; }
         @media (max-width: 1000px) {
             .editor-layout, .history-layout { flex-direction: column; }
             .left-sidebar, .calendar-panel { width: 100%; max-height: 300px; }
@@ -128,6 +130,11 @@
                     <h3>API设置</h3>
                     <input type="password" id="api-key" placeholder="DeepSeek API Key" onchange="saveApiKey()">
                     <small>获取：<a href="https://platform.deepseek.com/api_keys" target="_blank">deepseek.com</a></small>
+                </div>
+                <div class="sidebar-section">
+                    <button class="btn-export" onclick="exportData()">导出数据</button>
+                    <button class="btn-export" onclick="document.getElementById('import-file').click()">导入数据</button>
+                    <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(event)">
                 </div>
                 <div class="sidebar-section">
                     <div id="status-msg" class="status-msg"></div>
@@ -228,6 +235,9 @@
     <script>
         mermaid.initialize({ startOnLoad: false, theme: 'default' });
 
+        const STORAGE_KEY = 'daily_journey_data';
+        const API_KEY_STORAGE = 'deepseek_api_key';
+
         let diaryData = {};
         let currentDate = new Date();
         let selectedDate = null;
@@ -244,9 +254,9 @@
             life: { name: '生活', keywords: ['做饭', '唱歌', '烹饪', '美食', '音乐', '电影', '游戏', '购物', '打扫', '休息', '睡觉'] }
         };
 
-        async function init() {
+        function init() {
             document.getElementById('diary-date').value = formatDate(new Date());
-            await loadData();
+            loadData();
             loadApiKey();
             renderCalendar();
             setupWheelZoom();
@@ -258,26 +268,55 @@
             return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
         }
 
-        async function loadData() {
+        function loadData() {
             try {
-                const res = await fetch('/api/diary');
-                diaryData = await res.json();
+                const saved = localStorage.getItem(STORAGE_KEY);
+                diaryData = saved ? JSON.parse(saved) : {};
             } catch(e) {
                 diaryData = {};
             }
         }
 
-        async function saveData() {
+        function saveData() {
             try {
-                const res = await fetch('/api/diary', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(diaryData)
-                });
-                return res.ok;
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(diaryData));
+                return true;
             } catch(e) {
+                console.error('保存失败:', e);
                 return false;
             }
+        }
+
+        function exportData() {
+            const dataStr = JSON.stringify(diaryData, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `daily-journey-backup-${formatDate(new Date())}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showStatus('数据已导出');
+        }
+
+        function importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    diaryData = { ...diaryData, ...imported };
+                    saveData();
+                    renderCalendar();
+                    showStatus('数据导入成功');
+                } catch(err) {
+                    showStatus('导入失败: 文件格式错误', true);
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
         }
 
         function switchTab(tab) {
@@ -315,11 +354,11 @@
         }
 
         function saveApiKey() {
-            localStorage.setItem('deepseek_api_key', document.getElementById('api-key').value);
+            localStorage.setItem(API_KEY_STORAGE, document.getElementById('api-key').value);
         }
 
         function loadApiKey() {
-            const key = localStorage.getItem('deepseek_api_key');
+            const key = localStorage.getItem(API_KEY_STORAGE);
             if (key) document.getElementById('api-key').value = key;
         }
 
@@ -381,7 +420,7 @@
                     chartContent: mermaidCode
                 };
 
-                if (await saveData()) {
+                if (saveData()) {
                     await renderChart('edit', mermaidCode);
                     showStatus('解析并保存成功！');
                     renderCalendar();
@@ -414,7 +453,7 @@
         async function renderChart(type, code) {
             const preview = document.getElementById(type + '-preview');
             preview.innerHTML = `<div class="chart-wrapper"><div class="chart-container" id="${type}-chart"><pre class="mermaid">${code}</pre></div></div>`;
-            
+
             try {
                 await mermaid.run({ nodes: [preview.querySelector('.mermaid')] });
                 centerChart(type);
@@ -427,19 +466,19 @@
         function centerChart(type) {
             const container = document.getElementById(type + '-chart');
             if (!container) return;
-            
+
             const svg = container.querySelector('svg');
             if (!svg) return;
 
             const wrapper = container.parentElement;
             const wrapperRect = wrapper.getBoundingClientRect();
             const svgRect = svg.getBoundingClientRect();
-            
+
             chartPos[type] = {
                 x: (wrapperRect.width - svgRect.width * zoomLevel[type]) / 2,
                 y: (wrapperRect.height - svgRect.height * zoomLevel[type]) / 2
             };
-            
+
             container.style.left = chartPos[type].x + 'px';
             container.style.top = chartPos[type].y + 'px';
             container.style.transform = `scale(${zoomLevel[type]})`;
@@ -488,16 +527,16 @@
 
             document.addEventListener('mousemove', (e) => {
                 if (!dragState[type]?.isDragging) return;
-                
+
                 const dx = e.clientX - dragState[type].startX;
                 const dy = e.clientY - dragState[type].startY;
-                
+
                 chartPos[type].x += dx;
                 chartPos[type].y += dy;
-                
+
                 container.style.left = chartPos[type].x + 'px';
                 container.style.top = chartPos[type].y + 'px';
-                
+
                 dragState[type].startX = e.clientX;
                 dragState[type].startY = e.clientY;
             });
