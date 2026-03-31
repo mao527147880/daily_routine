@@ -3,7 +3,21 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = 3000;
-const DATA_FILE = path.join(__dirname, 'diary-data.json');
+
+function getBasePath() {
+    if (process.pkg) {
+        return path.dirname(process.execPath);
+    }
+    return __dirname;
+}
+
+function getDataFilePath() {
+    return path.join(getBasePath(), 'diary-data.json');
+}
+
+function getStaticFilePath(filename) {
+    return path.join(getBasePath(), filename);
+}
 
 const server = http.createServer((req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -17,7 +31,8 @@ const server = http.createServer((req, res) => {
     }
 
     if (req.method === 'GET' && req.url === '/api/diary') {
-        fs.readFile(DATA_FILE, 'utf8', (err, data) => {
+        const dataFile = getDataFilePath();
+        fs.readFile(dataFile, 'utf8', (err, data) => {
             if (err) {
                 if (err.code === 'ENOENT') {
                     res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -31,15 +46,15 @@ const server = http.createServer((req, res) => {
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(data);
         });
+        return;
     }
 
-    else if (req.method === 'POST' && req.url === '/api/diary') {
+    if (req.method === 'POST' && req.url === '/api/diary') {
         let body = '';
-        req.on('data', chunk => {
-            body += chunk.toString();
-        });
+        req.on('data', chunk => { body += chunk.toString(); });
         req.on('end', () => {
-            fs.writeFile(DATA_FILE, body, 'utf8', (err) => {
+            const dataFile = getDataFilePath();
+            fs.writeFile(dataFile, body, 'utf8', (err) => {
                 if (err) {
                     res.writeHead(500);
                     res.end('Error saving file');
@@ -49,16 +64,21 @@ const server = http.createServer((req, res) => {
                 res.end('{"success": true}');
             });
         });
+        return;
     }
 
-    else if (req.method === 'GET') {
-        let filePath = req.url === '/' ? '/daily-journey.html' : req.url;
-        filePath = path.join(__dirname, filePath);
+    if (req.method === 'GET') {
+        let filePath;
+        if (req.url === '/' || req.url === '') {
+            filePath = getStaticFilePath('daily-journey.html');
+        } else {
+            filePath = getStaticFilePath(req.url);
+        }
 
         const extname = path.extname(filePath);
         const contentTypes = {
-            '.html': 'text/html',
-            '.js': 'text/javascript',
+            '.html': 'text/html; charset=utf-8',
+            '.js': 'application/javascript',
             '.css': 'text/css',
             '.json': 'application/json'
         };
@@ -78,15 +98,22 @@ const server = http.createServer((req, res) => {
             res.writeHead(200, { 'Content-Type': contentType });
             res.end(content);
         });
+        return;
     }
 
-    else {
-        res.writeHead(404);
-        res.end('Not found');
-    }
+    res.writeHead(404);
+    res.end('Not found');
 });
 
 server.listen(PORT, () => {
-    console.log(`Server running at http://localhost:${PORT}`);
-    console.log(`Data will be saved to: ${DATA_FILE}`);
+    console.log('');
+    console.log('=================================');
+    console.log('  每日流程展示 已启动');
+    console.log('=================================');
+    console.log('');
+    console.log(`  访问地址: http://localhost:${PORT}`);
+    console.log(`  数据文件: ${getDataFilePath()}`);
+    console.log('');
+    console.log('  按 Ctrl+C 停止服务');
+    console.log('');
 });
